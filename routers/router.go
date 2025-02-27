@@ -17,10 +17,19 @@ func SetupRouter() *gin.Engine {
 	// JWT 鉴权的路由组
 	authorized := r.Group("/", utils.JWTAuthMiddleware())
 	{
+		// 点检记录相关接口
 		authorized.POST("/inspection", controllers.CreateInspection)
 		authorized.GET("/inspection", controllers.GetInspections)
 		authorized.PUT("/inspection", controllers.UpdateInspection)
 		authorized.DELETE("/inspection/:id", controllers.DeleteInspection)
+
+		// 用户个人信息相关接口
+		authorized.GET("/profile", controllers.GetUserProfile)
+		authorized.PUT("/profile", controllers.UpdateUserProfile)
+
+		// 图片上传接口
+		authorized.POST("/upload/image", controllers.UploadImage)
+
 	}
 
 	return r

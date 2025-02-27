@@ -32,6 +32,11 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// 将claims添加到上下文中，以便后续处理函数使用
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			c.Set("claims", claims)
+		}
+
 		c.Next()
 	}
 }
