@@ -32,5 +32,7 @@ func SetupRouter() *gin.Engine {
 
 	}
 
+	r.Static("/images", "./uploads/images")
+
 	return r
 }
