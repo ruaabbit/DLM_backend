@@ -90,14 +90,39 @@ func CreateInspection(c *gin.Context) {
 	utils.SuccessResponse(c, created)
 }
 
-// GetInspections 处理查询点检记录请求
+// GetInspections 处理查询点检记录请求，支持分页
 func GetInspections(c *gin.Context) {
-	records, err := services.GetInspectionRecords()
+	// 获取分页参数，默认第1页，每页10条
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	// 确保参数有效
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 10 // 限制pageSize范围，防止请求过大数据
+	}
+
+	// 调用服务层获取分页数据
+	total, records, err := services.GetInspectionRecordsWithPagination(page, pageSize)
 	if err != nil {
 		utils.ErrorResponse(c, "failed to get records")
 		return
 	}
-	utils.SuccessResponse(c, records)
+
+	// 计算总页数
+	totalPages := (total + int64(pageSize) - 1) / int64(pageSize)
+
+	utils.SuccessResponse(c, gin.H{
+		"records": records,
+		"pagination": gin.H{
+			"total":      total,
+			"page":       page,
+			"pageSize":   pageSize,
+			"totalPages": totalPages,
+		},
+	})
 }
 
 // UpdateInspection 处理更新点检记录请求
