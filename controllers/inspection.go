@@ -151,6 +151,17 @@ func GetInspections(c *gin.Context) {
 		filters["safety_rope_installed"] = safety
 	}
 
+	// 添加JSON字段过滤
+	if pinStatus := c.Query("pin_status"); pinStatus != "" {
+		filters["pin_status"] = pinStatus
+	}
+	if mainWallStatus := c.Query("main_wall_status"); mainWallStatus != "" {
+		filters["main_wall_status"] = mainWallStatus
+	}
+	if warehouseFoundation := c.Query("warehouse_foundation"); warehouseFoundation != "" {
+		filters["warehouse_foundation"] = warehouseFoundation
+	}
+
 	// 关键字搜索 (在多个字段中查找)
 	if keyword := c.Query("keyword"); keyword != "" {
 		// 这里需要修改服务层函数来支持关键字搜索

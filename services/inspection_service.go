@@ -3,6 +3,8 @@ package services
 import (
 	"DLM_backend/database"
 	"DLM_backend/models"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -48,8 +50,71 @@ func GetInspectionRecordsWithFilters(page, pageSize int, filters map[string]inte
 	var total int64
 	query := database.DB.Model(&models.InspectionRecord{})
 
-	// 应用过滤条件
-	for key, value := range filters {
+	// 提前复制filters，避免修改原始filters
+	workingFilters := make(map[string]interface{})
+	for k, v := range filters {
+		workingFilters[k] = v
+	}
+
+	// 处理关键字搜索
+	if keyword, ok := workingFilters["keyword"].(string); ok && keyword != "" {
+		query = query.Where(
+			"unit LIKE ? OR warehouse_number LIKE ? OR grain_door_position LIKE ? OR "+
+				"caretaker LIKE ? OR remarks LIKE ? OR signature LIKE ? OR "+
+				"deformation_crack_description LIKE ? OR closure_description LIKE ? OR "+
+				"pin_description LIKE ? OR main_wall_description LIKE ? OR "+
+				"warehouse_foundation_description LIKE ? OR safety_rope_description LIKE ? OR "+
+				"contact_number LIKE ?",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%",
+			"%"+keyword+"%",
+		)
+		delete(workingFilters, "keyword")
+	}
+
+	// 处理日期范围过滤
+	if startDateStr, ok := workingFilters["start_date"].(string); ok && startDateStr != "" {
+		startDate, err := time.Parse("2006-01-02", startDateStr)
+		if err == nil {
+			query = query.Where("inspection_time >= ?", startDate)
+		}
+		delete(workingFilters, "start_date")
+	} else if startDate, ok := workingFilters["start_date"].(time.Time); ok {
+		query = query.Where("inspection_time >= ?", startDate)
+		delete(workingFilters, "start_date")
+	}
+
+	if endDateStr, ok := workingFilters["end_date"].(string); ok && endDateStr != "" {
+		endDate, err := time.Parse("2006-01-02", endDateStr)
+		if err == nil {
+			// 设置到当天结束
+			endDate = endDate.Add(24*time.Hour - time.Second)
+			query = query.Where("inspection_time <= ?", endDate)
+		}
+		delete(workingFilters, "end_date")
+	} else if endDate, ok := workingFilters["end_date"].(time.Time); ok {
+		query = query.Where("inspection_time <= ?", endDate)
+		delete(workingFilters, "end_date")
+	}
+
+	// 处理JSON字段的过滤（支持多值查询，用逗号分隔）
+	jsonFields := []string{"pin_status", "main_wall_status", "warehouse_foundation"}
+	for _, fieldName := range jsonFields {
+		if value, ok := workingFilters[fieldName].(string); ok && value != "" {
+			values := strings.Split(value, ",")
+			for _, v := range values {
+				v = strings.TrimSpace(v)
+				// 对每个值添加一个EXISTS条件
+				query = query.Where(fmt.Sprintf("EXISTS (SELECT 1 FROM json_each(%s) WHERE value = ?)", fieldName), v)
+			}
+			delete(workingFilters, fieldName)
+		}
+	}
+
+	// 应用其余的过滤条件
+	for key, value := range workingFilters {
 		// 如果值是字符串并且不为空，则添加模糊查询
 		if strVal, ok := value.(string); ok && strVal != "" {
 			query = query.Where(key+" LIKE ?", "%"+strVal+"%")
@@ -57,27 +122,6 @@ func GetInspectionRecordsWithFilters(page, pageSize int, filters map[string]inte
 			// 对于其他非空值，使用精确匹配
 			query = query.Where(key+" = ?", value)
 		}
-	}
-
-	// 如果有日期范围过滤
-	if startDate, ok := filters["start_date"].(time.Time); ok {
-		query = query.Where("inspection_time >= ?", startDate)
-		delete(filters, "start_date") // 删除已处理的特殊条件
-	}
-	if endDate, ok := filters["end_date"].(time.Time); ok {
-		query = query.Where("inspection_time <= ?", endDate)
-		delete(filters, "end_date") // 删除已处理的特殊条件
-	}
-
-	// 完整的关键字搜索功能
-	if keyword, ok := filters["keyword"].(string); ok && keyword != "" {
-		query = query.Where(
-			"unit LIKE ? OR warehouse_number LIKE ? OR grain_door_position LIKE ? OR "+
-				"caretaker LIKE ? OR remarks LIKE ? OR signature LIKE ?",
-			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%",
-			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%",
-		)
-		delete(filters, "keyword") // 从过滤条件中移除已处理的关键字
 	}
 
 	// 获取总记录数
