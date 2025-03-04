@@ -90,7 +90,7 @@ func CreateInspection(c *gin.Context) {
 	utils.SuccessResponse(c, created)
 }
 
-// GetInspections 处理查询点检记录请求，支持分页
+// GetInspections 处理查询点检记录请求，支持分页和过滤
 func GetInspections(c *gin.Context) {
 	// 获取分页参数，默认第1页，每页10条
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -104,8 +104,62 @@ func GetInspections(c *gin.Context) {
 		pageSize = 10 // 限制pageSize范围，防止请求过大数据
 	}
 
-	// 调用服务层获取分页数据
-	total, records, err := services.GetInspectionRecordsWithPagination(page, pageSize)
+	// 构建过滤条件
+	filters := make(map[string]interface{})
+
+	// 添加常规字段过滤
+	if unit := c.Query("unit"); unit != "" {
+		filters["unit"] = unit
+	}
+	if warehouse := c.Query("warehouse_number"); warehouse != "" {
+		filters["warehouse_number"] = warehouse
+	}
+	if position := c.Query("grain_door_position"); position != "" {
+		filters["grain_door_position"] = position
+	}
+	if caretaker := c.Query("caretaker"); caretaker != "" {
+		filters["caretaker"] = caretaker
+	}
+	if signature := c.Query("signature"); signature != "" {
+		filters["signature"] = signature
+	}
+
+	// 添加日期范围过滤
+	if startDateStr := c.Query("start_date"); startDateStr != "" {
+		startDate, err := time.Parse("2006-01-02", startDateStr)
+		if err == nil {
+			filters["start_date"] = startDate
+		}
+	}
+	if endDateStr := c.Query("end_date"); endDateStr != "" {
+		endDate, err := time.Parse("2006-01-02", endDateStr)
+		if err == nil {
+			// 设置为当天结束时间
+			endDate = endDate.Add(24*time.Hour - time.Second)
+			filters["end_date"] = endDate
+		}
+	}
+
+	// 添加状况类型过滤
+	if deformation := c.Query("deformation_crack"); deformation != "" {
+		filters["deformation_crack"] = deformation
+	}
+	if closure := c.Query("closure_status"); closure != "" {
+		filters["closure_status"] = closure
+	}
+	if safety := c.Query("safety_rope_installed"); safety != "" {
+		filters["safety_rope_installed"] = safety
+	}
+
+	// 关键字搜索 (在多个字段中查找)
+	if keyword := c.Query("keyword"); keyword != "" {
+		// 这里需要修改服务层函数来支持关键字搜索
+		// 本例中暂时使用备注字段进行模糊查询
+		filters["keyword"] = keyword
+	}
+
+	// 调用服务层获取带过滤的分页数据
+	total, records, err := services.GetInspectionRecordsWithFilters(page, pageSize, filters)
 	if err != nil {
 		utils.ErrorResponse(c, "failed to get records")
 		return
