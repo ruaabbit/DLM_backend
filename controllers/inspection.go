@@ -241,8 +241,21 @@ func GetUserInspections(c *gin.Context) {
 	filters := make(map[string]interface{})
 	filters["user_id"] = user.ID
 
-	// 添加其他过滤条件，复用现有的过滤逻辑
-	// ... 从GetInspections复制其他过滤条件的处理 ...
+	// 添加日期范围过滤
+	if startDateStr := c.Query("start_date"); startDateStr != "" {
+		startDate, err := time.Parse("2006-01-02", startDateStr)
+		if err == nil {
+			filters["start_date"] = startDate
+		}
+	}
+	if endDateStr := c.Query("end_date"); endDateStr != "" {
+		endDate, err := time.Parse("2006-01-02", endDateStr)
+		if err == nil {
+			// 设置为当天结束时间
+			endDate = endDate.Add(24*time.Hour - time.Second)
+			filters["end_date"] = endDate
+		}
+	}
 
 	// 调用服务层获取带过滤的分页数据
 	total, records, err := services.GetInspectionRecordsWithFilters(page, pageSize, filters)
@@ -254,6 +267,26 @@ func GetUserInspections(c *gin.Context) {
 	// 计算总页数
 	totalPages := (total + int64(pageSize) - 1) / int64(pageSize)
 
+	// 获取用户累计打卡次数
+	var totalCount int64
+	if err := database.DB.Model(&models.InspectionRecord{}).Where("user_id = ?", user.ID).Count(&totalCount).Error; err != nil {
+		utils.ServerErrorResponse(c, "failed to get total count")
+		return
+	}
+
+	// 获取本月打卡次数
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	endOfMonth := startOfMonth.AddDate(0, 1, 0).Add(-time.Second)
+	var monthlyCount int64
+	if err := database.DB.Model(&models.InspectionRecord{}).
+		Where("user_id = ? AND inspection_time BETWEEN ? AND ?",
+			user.ID, startOfMonth, endOfMonth).
+		Count(&monthlyCount).Error; err != nil {
+		utils.ServerErrorResponse(c, "failed to get monthly count")
+		return
+	}
+
 	utils.SuccessResponse(c, gin.H{
 		"records": records,
 		"pagination": gin.H{
@@ -261,6 +294,10 @@ func GetUserInspections(c *gin.Context) {
 			"page":       page,
 			"pageSize":   pageSize,
 			"totalPages": totalPages,
+		},
+		"stats": gin.H{
+			"monthlyCount": monthlyCount, // 本月打卡次数
+			"totalCount":   totalCount,   // 累计打卡次数
 		},
 	})
 }
