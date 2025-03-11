@@ -5,10 +5,12 @@ import (
 	"strconv"
 	"time"
 
+	"DLM_backend/database"
 	"DLM_backend/models"
 	"DLM_backend/services"
 	"DLM_backend/utils"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"gorm.io/datatypes"
 )
@@ -46,6 +48,21 @@ func CreateInspection(c *gin.Context) {
 		return
 	}
 
+	// 从JWT获取用户信息
+	claims, exists := c.Get("claims")
+	if !exists {
+		utils.UnauthorizedResponse(c, "token claims not found")
+		return
+	}
+	username := claims.(jwt.MapClaims)["username"].(string)
+
+	// 查询用户ID
+	var user models.User
+	if err := database.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		utils.NotFoundResponse(c, "user not found")
+		return
+	}
+
 	// 处理数组字段转换为JSON
 	pinStatusJSON, _ := json.Marshal(requestData.PinStatus)
 	mainWallStatusJSON, _ := json.Marshal(requestData.MainWallStatus)
@@ -53,6 +70,7 @@ func CreateInspection(c *gin.Context) {
 
 	// 转换为模型
 	record := models.InspectionRecord{
+		UserID:                         user.ID, // 添加用户ID
 		Unit:                           requestData.Unit,
 		WarehouseNumber:                requestData.WarehouseNumber,
 		GrainDoorPosition:              requestData.GrainDoorPosition,
@@ -168,6 +186,63 @@ func GetInspections(c *gin.Context) {
 		// 本例中暂时使用备注字段进行模糊查询
 		filters["keyword"] = keyword
 	}
+
+	// 调用服务层获取带过滤的分页数据
+	total, records, err := services.GetInspectionRecordsWithFilters(page, pageSize, filters)
+	if err != nil {
+		utils.ErrorResponse(c, "failed to get records")
+		return
+	}
+
+	// 计算总页数
+	totalPages := (total + int64(pageSize) - 1) / int64(pageSize)
+
+	utils.SuccessResponse(c, gin.H{
+		"records": records,
+		"pagination": gin.H{
+			"total":      total,
+			"page":       page,
+			"pageSize":   pageSize,
+			"totalPages": totalPages,
+		},
+	})
+}
+
+// GetUserInspections 获取当前登录用户的点检记录
+func GetUserInspections(c *gin.Context) {
+	// 从JWT中获取用户名
+	claims, exists := c.Get("claims")
+	if !exists {
+		utils.UnauthorizedResponse(c, "token claims not found")
+		return
+	}
+	username := claims.(jwt.MapClaims)["username"].(string)
+
+	// 查询用户ID
+	var user models.User
+	if err := database.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		utils.NotFoundResponse(c, "user not found")
+		return
+	}
+
+	// 获取分页参数
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	// 确保参数有效
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 10
+	}
+
+	// 构建过滤条件，加入用户ID
+	filters := make(map[string]interface{})
+	filters["user_id"] = user.ID
+
+	// 添加其他过滤条件，复用现有的过滤逻辑
+	// ... 从GetInspections复制其他过滤条件的处理 ...
 
 	// 调用服务层获取带过滤的分页数据
 	total, records, err := services.GetInspectionRecordsWithFilters(page, pageSize, filters)

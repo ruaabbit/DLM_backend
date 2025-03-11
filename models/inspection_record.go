@@ -9,6 +9,8 @@ import (
 // InspectionRecord 定义挡粮门点检记录模型
 type InspectionRecord struct {
 	ID                             int            `json:"id" gorm:"primaryKey"`                              // 主键ID
+	UserID                         int            `json:"user_id" gorm:"default:null"`                       // 用户ID外键
+	User                           User           `json:"user" gorm:"foreignKey:UserID"`                     // 用户关联
 	Unit                           string         `json:"unit" gorm:"not null"`                              // 单位
 	WarehouseNumber                string         `json:"warehouse_number" gorm:"not null"`                  // 仓号
 	GrainDoorPosition              string         `json:"grain_door_position" gorm:"not null"`               // 挡粮门位置

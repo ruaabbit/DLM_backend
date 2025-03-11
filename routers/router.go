@@ -23,6 +23,9 @@ func SetupRouter() *gin.Engine {
 		authorized.PUT("/inspection", controllers.UpdateInspection)
 		authorized.DELETE("/inspection/:id", controllers.DeleteInspection)
 
+		// 获取当前登录用户的点检记录
+		authorized.GET("/user/inspections", controllers.GetUserInspections)
+
 		// 用户个人信息相关接口
 		authorized.GET("/profile", controllers.GetUserProfile)
 		authorized.PUT("/profile", controllers.UpdateUserProfile)
