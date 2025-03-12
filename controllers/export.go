@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"DLM_backend/services"
@@ -109,7 +108,7 @@ func ExportInspection(c *gin.Context) {
 			f.SetCellValue(sheetName, "K"+strconv.Itoa(row), pinStatusStr)
 		} else {
 			// 如果解析失败，使用原始字符串
-			f.SetCellValue(sheetName, "K"+strconv.Itoa(row), record.PinStatus)
+			f.SetCellValue(sheetName, "K"+strconv.Itoa(row), string(record.PinStatus))
 		}
 
 		f.SetCellValue(sheetName, "L"+strconv.Itoa(row), record.PinDescription)
@@ -138,7 +137,7 @@ func ExportInspection(c *gin.Context) {
 			f.SetCellValue(sheetName, "M"+strconv.Itoa(row), mainWallStatusStr)
 		} else {
 			// 如果解析失败，使用原始字符串
-			f.SetCellValue(sheetName, "M"+strconv.Itoa(row), record.MainWallStatus)
+			f.SetCellValue(sheetName, "M"+strconv.Itoa(row), string(record.MainWallStatus))
 		}
 
 		f.SetCellValue(sheetName, "N"+strconv.Itoa(row), record.MainWallDescription)
@@ -166,10 +165,10 @@ func ExportInspection(c *gin.Context) {
 			}
 			// 去掉最后一个逗号
 			foundationStatusStr = foundationStatusStr[:len(foundationStatusStr)-1]
-			f.SetCellValue(sheetName, "P"+strconv.Itoa(row), foundationStatusStr)
+			f.SetCellValue(sheetName, "O"+strconv.Itoa(row), foundationStatusStr)
 		} else {
 			// 如果解析失败，使用原始字符串
-			f.SetCellValue(sheetName, "P"+strconv.Itoa(row), record.WarehouseFoundation)
+			f.SetCellValue(sheetName, "O"+strconv.Itoa(row), string(record.WarehouseFoundation))
 		}
 
 		f.SetCellValue(sheetName, "P"+strconv.Itoa(row), record.WarehouseFoundationDescription)
@@ -182,15 +181,31 @@ func ExportInspection(c *gin.Context) {
 		// 处理图片路径
 		var imagePaths []string
 		if err := json.Unmarshal([]byte(record.Images), &imagePaths); err == nil {
-			// 拼接前缀，创建完整URL
-			for i, path := range imagePaths {
-				imagePaths[i] = fmt.Sprintf("http://%s/images/%s", c.Request.Host, path)
+			imagePathsStr := ""
+			// 动态判断协议 (HTTP/HTTPS)
+			scheme := "http"
+			// 检查 X-Forwarded-Proto 头（当使用反向代理如Nginx时）
+			if c.GetHeader("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			} else if c.Request.TLS != nil {
+				// 如果是直接的TLS连接
+				scheme = "https"
 			}
-			imagePathsStr := strings.Join(imagePaths, "\n")
+
+			// 拼接前缀，创建完整URL
+			for _, path := range imagePaths {
+				if path == "" {
+					continue
+				}
+				imagePathsStr += fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, path) + ","
+			}
+			// 去掉最后一个逗号
+			imagePathsStr = imagePathsStr[:len(imagePathsStr)-1]
+
 			f.SetCellValue(sheetName, "V"+strconv.Itoa(row), imagePathsStr)
 		} else {
 			// 如果解析失败，使用原始字符串
-			f.SetCellValue(sheetName, "V"+strconv.Itoa(row), record.Images)
+			f.SetCellValue(sheetName, "V"+strconv.Itoa(row), string(record.Images))
 		}
 	}
 
