@@ -1,10 +1,12 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"DLM_backend/services"
@@ -80,18 +82,116 @@ func ExportInspection(c *gin.Context) {
 		f.SetCellValue(sheetName, "H"+strconv.Itoa(row), record.DeformationCrackDescription)
 		f.SetCellValue(sheetName, "I"+strconv.Itoa(row), record.ClosureStatus)
 		f.SetCellValue(sheetName, "J"+strconv.Itoa(row), record.ClosureDescription)
-		f.SetCellValue(sheetName, "K"+strconv.Itoa(row), string(record.PinStatus))
+
+		// 处理栓销状态
+		// 'normal': '正常',
+		// 'loose': '松动',
+		// 'deformed': '变形',
+		// 'missing': '缺失',
+		var pinStatus []string
+		if err := json.Unmarshal([]byte(record.PinStatus), &pinStatus); err == nil {
+			pinStatusStr := ""
+			for _, status := range pinStatus {
+				switch status {
+				case "normal":
+					pinStatusStr += "正常"
+				case "loose":
+					pinStatusStr += "松动"
+				case "deformed":
+					pinStatusStr += "变形"
+				case "missing":
+					pinStatusStr += "缺失"
+				}
+				pinStatusStr += ","
+			}
+			// 去掉最后一个逗号
+			pinStatusStr = pinStatusStr[:len(pinStatusStr)-1]
+			f.SetCellValue(sheetName, "K"+strconv.Itoa(row), pinStatusStr)
+		} else {
+			// 如果解析失败，使用原始字符串
+			f.SetCellValue(sheetName, "K"+strconv.Itoa(row), record.PinStatus)
+		}
+
 		f.SetCellValue(sheetName, "L"+strconv.Itoa(row), record.PinDescription)
-		f.SetCellValue(sheetName, "M"+strconv.Itoa(row), string(record.MainWallStatus))
+
+		// 处理主体墙状态
+		// 'normal': '正常',
+		// 'damaged': '破损',
+		// 'cracked': '有裂缝',
+
+		var mainWallStatus []string
+		if err := json.Unmarshal([]byte(record.MainWallStatus), &mainWallStatus); err == nil {
+			mainWallStatusStr := ""
+			for _, status := range mainWallStatus {
+				switch status {
+				case "normal":
+					mainWallStatusStr += "正常"
+				case "damaged":
+					mainWallStatusStr += "破损"
+				case "cracked":
+					mainWallStatusStr += "有裂缝"
+				}
+				mainWallStatusStr += ","
+			}
+			// 去掉最后一个逗号
+			mainWallStatusStr = mainWallStatusStr[:len(mainWallStatusStr)-1]
+			f.SetCellValue(sheetName, "M"+strconv.Itoa(row), mainWallStatusStr)
+		} else {
+			// 如果解析失败，使用原始字符串
+			f.SetCellValue(sheetName, "M"+strconv.Itoa(row), record.MainWallStatus)
+		}
+
 		f.SetCellValue(sheetName, "N"+strconv.Itoa(row), record.MainWallDescription)
-		f.SetCellValue(sheetName, "O"+strconv.Itoa(row), string(record.WarehouseFoundation))
+
+		// 处理仓门地基状态
+		// 'normal': '正常',
+		// 'frozen': '冻胀',
+		// 'sinking': '下沉',
+		// 'collapsed': '塌陷'
+		var foundationStatus []string
+		if err := json.Unmarshal([]byte(record.WarehouseFoundation), &foundationStatus); err == nil {
+			foundationStatusStr := ""
+			for _, status := range foundationStatus {
+				switch status {
+				case "normal":
+					foundationStatusStr += "正常"
+				case "frozen":
+					foundationStatusStr += "冻胀"
+				case "sinking":
+					foundationStatusStr += "下沉"
+				case "collapsed":
+					foundationStatusStr += "塌陷"
+				}
+				foundationStatusStr += ","
+			}
+			// 去掉最后一个逗号
+			foundationStatusStr = foundationStatusStr[:len(foundationStatusStr)-1]
+			f.SetCellValue(sheetName, "P"+strconv.Itoa(row), foundationStatusStr)
+		} else {
+			// 如果解析失败，使用原始字符串
+			f.SetCellValue(sheetName, "P"+strconv.Itoa(row), record.WarehouseFoundation)
+		}
+
 		f.SetCellValue(sheetName, "P"+strconv.Itoa(row), record.WarehouseFoundationDescription)
 		f.SetCellValue(sheetName, "Q"+strconv.Itoa(row), record.SafetyRopeInstalled)
 		f.SetCellValue(sheetName, "R"+strconv.Itoa(row), record.SafetyRopeDescription)
 		f.SetCellValue(sheetName, "S"+strconv.Itoa(row), record.Remarks)
 		f.SetCellValue(sheetName, "T"+strconv.Itoa(row), record.Signature)
 		f.SetCellValue(sheetName, "U"+strconv.Itoa(row), record.ContactNumber)
-		f.SetCellValue(sheetName, "V"+strconv.Itoa(row), string(record.Images))
+
+		// 处理图片路径
+		var imagePaths []string
+		if err := json.Unmarshal([]byte(record.Images), &imagePaths); err == nil {
+			// 拼接前缀，创建完整URL
+			for i, path := range imagePaths {
+				imagePaths[i] = fmt.Sprintf("http://%s/images/%s", c.Request.Host, path)
+			}
+			imagePathsStr := strings.Join(imagePaths, "\n")
+			f.SetCellValue(sheetName, "V"+strconv.Itoa(row), imagePathsStr)
+		} else {
+			// 如果解析失败，使用原始字符串
+			f.SetCellValue(sheetName, "V"+strconv.Itoa(row), record.Images)
+		}
 	}
 
 	// 调整列宽
