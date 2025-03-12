@@ -33,9 +33,12 @@ func SetupRouter() *gin.Engine {
 		// 图片上传接口
 		authorized.POST("/upload/image", controllers.UploadImage)
 
+		// 导出点检记录
+		authorized.POST("/export-inspection", controllers.ExportInspection)
 	}
 
 	r.Static("/images", "./uploads/images")
+	r.Static("/exports", "./exports") // 添加这一行来提供导出文件的访问
 
 	return r
 }
