@@ -200,7 +200,9 @@ func ExportInspection(c *gin.Context) {
 				imagePathsStr += fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, path) + ","
 			}
 			// 去掉最后一个逗号
-			imagePathsStr = imagePathsStr[:len(imagePathsStr)-1]
+			if len(imagePathsStr) > 0 {
+				imagePathsStr = imagePathsStr[:len(imagePathsStr)-1]
+			}
 
 			f.SetCellValue(sheetName, "V"+strconv.Itoa(row), imagePathsStr)
 		} else {
